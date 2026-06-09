@@ -7,7 +7,16 @@ import out_pdf
 st.title("表千家茶道部 道具カタログ 作成")
 
 csv_file = st.file_uploader("カタログ csv のアップロード", type='csv')
-img_dir = st.file_uploader("画像フォルダのアップロード", accept_multiple_files='directory')
+img_dir = st.file_uploader(
+    "画像フォルダのアップロード",
+    accept_multiple_files="directory"
+)
+
+img_files = st.file_uploader(
+    "画像ファイルを複数アップロード",
+    type=["jpg", "jpeg", "png", "webp"],
+    accept_multiple_files=True
+)
 
 if csv_file != None:
     df = pd.read_csv(csv_file, comment="#")
@@ -28,27 +37,46 @@ if csv_file != None:
     st.write(df_selected)
 
     img_dict = {}
+    uploaded_imgs = []
+
     if img_dir:
-        img_path_list = [img.name for img in img_dir]
+        uploaded_imgs.extend(img_dir)
+
+    if img_files:
+        uploaded_imgs.extend(img_files)
+
+    if uploaded_imgs:
+        img_path_list = [img.name for img in uploaded_imgs]
         img_file_names = [img_path.split("/")[-1] for img_path in img_path_list]
-        
+
         df_show_img = pd.DataFrame({
-            "img": img_dir,
+            "img": uploaded_imgs,
             "path": img_path_list,
             "name": img_file_names
         })
-        
+
+        img_dict = {
+            img.name.split("/")[-1]: img
+            for img in uploaded_imgs
+        }
+
         for row in df_selected.itertuples():
             file_name = row[-1]
-            if file_name in df_show_img['name'].to_list():
-                img = df_show_img[df_show_img['name']==file_name]['img'].iloc[0]
-                img = Image.open(img)
+
+            if file_name in df_show_img["name"].to_list():
+                img_file = df_show_img[df_show_img["name"] == file_name]["img"].iloc[0]
+
+                img_file.seek(0)
+                img = Image.open(img_file)
                 img = ImageOps.exif_transpose(img)
+
                 col_img, col_text = st.columns([1, 2])
+
                 with col_text:
                     st.write(f"道具名: {row[1]}")
                     st.write(f"作者: {row[4]}")
                     st.write(f"作品名: {row[3]}")
+
                 with col_img:
                     st.image(img, use_container_width=True)
         img_dict = {
