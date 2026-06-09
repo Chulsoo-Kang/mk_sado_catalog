@@ -11,8 +11,6 @@ img_dir = st.file_uploader("画像フォルダのアップロード", accept_mul
 
 if csv_file != None:
     df = pd.read_csv(csv_file, comment="#")
-else:
-    df = pd.read_csv("/Users/kang/Desktop/ofcwrk/sado/catalog/sample01.csv", comment="#")
 
 selected_item = st.sidebar.multiselect(
     "道具を選択",
