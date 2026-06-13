@@ -1,8 +1,45 @@
 from PIL import Image, ImageOps
+from pathlib import Path
+from io import BytesIO
 import streamlit as st
 import numpy as np
 import pandas as pd
-import out_pdf
+import out_pdf, csv
+
+
+
+def read_catalog_csv(csv_file):
+    text = csv_file.getvalue().decode("utf-8-sig").splitlines()
+    reader = csv.reader(text)
+
+    header = next(reader)
+    base_cols = header[:6]  # 道具名, 種類, 作品名, 作者, 個数, 備考
+
+    rows = []
+    for line in reader:
+        base = line[:6]
+        image_names = line[6:]
+
+        # 空欄を除去
+        image_names = [x.strip() for x in image_names if x.strip()]
+
+        row = dict(zip(base_cols, base))
+        row["画像ファイル名"] = image_names
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def stem_name(filename):
+    return Path(filename).stem.lower()
+
+
+def make_img_dict(uploaded_imgs):
+    return {
+        stem_name(img.name.split("/")[-1]): img.getvalue()
+        for img in uploaded_imgs
+    }
+
 
 st.title("表千家茶道部 道具カタログ 作成")
 
@@ -19,7 +56,7 @@ img_files = st.file_uploader(
 )
 
 if csv_file != None:
-    df = pd.read_csv(csv_file, comment="#")
+    df = read_catalog_csv(csv_file)
 
     selected_item = st.sidebar.multiselect(
         "道具を選択",
@@ -55,34 +92,33 @@ if csv_file != None:
             "name": img_file_names
         })
 
-        img_dict = {
-            img.name.split("/")[-1]: img
-            for img in uploaded_imgs
-        }
+        img_dict = make_img_dict(uploaded_imgs)
 
-        for row in df_selected.itertuples():
-            file_name = row[-1]
+        for _, row in df_selected.iterrows():
+            image_names = row["画像ファイル名"]
 
-            if file_name in df_show_img["name"].to_list():
-                img_file = df_show_img[df_show_img["name"] == file_name]["img"].iloc[0]
+            st.subheader(f"{row['道具名']}：{row['作品名']}")
 
-                img_file.seek(0)
-                img = Image.open(img_file)
-                img = ImageOps.exif_transpose(img)
+            col_text, col_img = st.columns([2, 3])
 
-                col_img, col_text = st.columns([1, 2])
+            with col_text:
+                st.write(f"道具名: {row['道具名']}")
+                st.write(f"種類: {row['種類']}")
+                st.write(f"作者: {row['作者']}")
+                st.write(f"個数: {row['個数']}")
+                st.write(f"備考: {row['備考']}")
 
-                with col_text:
-                    st.write(f"道具名: {row[1]}")
-                    st.write(f"作者: {row[4]}")
-                    st.write(f"作品名: {row[3]}")
+            with col_img:
+                for image_name in image_names:
+                    key = stem_name(image_name)
 
-                with col_img:
-                    st.image(img, use_container_width=True)
-        img_dict = {
-            img.name.split("/")[-1]: img
-            for img in img_dir
-        }
+                    if key in img_dict:
+                        img_bytes = img_dict[key]
+
+                        img = Image.open(BytesIO(img_bytes))
+                        img = ImageOps.exif_transpose(img)
+
+                        st.image(img, use_container_width=True)
 
     if st.sidebar.button("現在表示中のカタログをPDF化"):
         progress = st.sidebar.progress(0)
